@@ -1,8 +1,9 @@
 # encoding: binary
 # frozen_string_literal: true
 
-module Parser
+require 'stringio'
 
+module Parser
   class Lexer::Literal
     DELIMITERS = { '(' => ')', '[' => ']', '{' => '}', '<' => '>' }
 
@@ -151,7 +152,7 @@ module Parser
           emit(:tLABEL_END, @end_delim, ts, te + 1)
         elsif @monolithic
           # Emit the string as a single token.
-          emit(:tSTRING, @buffer, @str_s, te)
+          emit(:tSTRING, @buffer.string, @str_s, te)
         else
           # If this is a heredoc, @buffer contains the sentinel now.
           # Just throw it out. Lexer flushes the heredoc after each
@@ -197,6 +198,7 @@ module Parser
       @buffer_e = te
 
       @buffer << string
+      @buffer.set_encoding(string.encoding)
     end
 
     def flush_string
@@ -205,8 +207,8 @@ module Parser
         @monolithic = false
       end
 
-      unless @buffer.empty?
-        emit(:tSTRING_CONTENT, @buffer, @buffer_s, @buffer_e)
+      if @buffer.length > 0
+        emit(:tSTRING_CONTENT, @buffer.string, @buffer_s, @buffer_e)
 
         clear_buffer
         extend_content
@@ -246,11 +248,7 @@ module Parser
     end
 
     def clear_buffer
-      @buffer = ''.dup
-
-      # Prime the buffer with lexer encoding; otherwise,
-      # concatenation will produce varying results.
-      @buffer.force_encoding(@lexer.source_buffer.source.encoding)
+      @buffer = StringIO.new
 
       @buffer_s = nil
       @buffer_e = nil
